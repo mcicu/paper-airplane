@@ -2,6 +2,13 @@
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
 
+// Telegram Web Apps API is accessed via the global `window.Telegram` object
+declare global {
+    interface Window {
+        Telegram: Telegram;
+    }
+}
+
 const GameCanvas: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -12,6 +19,10 @@ const GameCanvas: React.FC = () => {
     // Game state
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
+
+    // User info from Telegram
+    const [telegramState, setTelegramState] = useState("Undefined");
+    const [user, setUser] = useState<{ id: number; name: string; photoUrl?: string } | null>(null);
 
     // Bird and pipe positions stored in refs
     const birdRef = useRef({ y: screenHeight / 2, velocity: 0 });
@@ -29,7 +40,7 @@ const GameCanvas: React.FC = () => {
     useEffect(() => {
         const handleResize = () => {
             setScreenWidth(window.innerWidth);
-            setScreenHeight(window.innerHeight);
+            setScreenHeight(window.innerHeight-100);
         };
 
         handleResize(); //call once on startup
@@ -38,6 +49,29 @@ const GameCanvas: React.FC = () => {
         return () => {
             window.removeEventListener("resize", handleResize);
         };
+    }, []);
+
+    // Telegram Web Apps API Initialization
+    useEffect(() => {
+        const telegram = window.Telegram?.WebApp;
+
+        if (telegram) {
+            telegram.ready(); // Notify Telegram that the app is ready
+            const userInfo = telegram.initDataUnsafe?.user;
+
+            if (userInfo) {
+                setUser({
+                    id: userInfo.id,
+                    name: `${userInfo.first_name} ${userInfo.last_name || ""}`.trim(),
+                    photoUrl: userInfo.photo_url,
+                });
+                setTelegramState(`User info set [user id = ${userInfo.id}]`);
+            } else {
+                setTelegramState("User info is not available. Check bot and domain configuration.");
+            }
+        } else {
+            setTelegramState("Telegram is unavailable");
+        }
     }, []);
 
     // Reset the game
@@ -169,11 +203,22 @@ const GameCanvas: React.FC = () => {
             onMouseDown={handleFlap}
             onTouchStart={handleFlap}
         >
-            <canvas ref={canvasRef} width={screenWidth} height={screenHeight} />
+            <canvas ref={canvasRef} width={screenWidth} height={screenHeight}/>
             {gameOver && (
                 <div className="absolute text-2xl text-red-600">
-                    Game Over! Score: {score} <br />
-                    Tap or press space to restart!
+                    Game Over! Score: {score} <br/>
+                    Tap or press space to restart! <br />
+                    Telegram API state: {telegramState}
+                </div>
+            )}
+            {user && (
+                <div className="absolute top-4 left-4 flex items-center space-x-4">
+                    <img
+                        src={user.photoUrl}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full"
+                    />
+                    <span className="text-lg font-bold text-red-500">{user.name}</span>
                 </div>
             )}
         </div>
