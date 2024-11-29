@@ -1,11 +1,43 @@
-import GameCanvas from "../components/GameCanvas";
+"use client";
+
+import UserDetails from "@/components/UserDetails";
+import {useEffect, useState} from "react";
+import TelegramUser from "@/models/TelegramUser";
+import {cloudStorage, init, retrieveLaunchParams} from "@telegram-apps/sdk";
+import GameCanvas from "@/components/GameCanvas";
+
+const saveUserScore = async (score) => {
+    await cloudStorage.setItem("score", score);
+}
 
 function Home() {
-  return (
-      <div className="h-screen bg-gradient-to-b from-blue-400 to-green-400">
-        <GameCanvas />
-      </div>
-  );
+
+    // User info from Telegram
+    const [user, setUser] = useState<TelegramUser>(null);
+
+    // Telegram Web Apps API Initialization
+    useEffect(() => {
+        /*init();
+        const userInfo = retrieveLaunchParams().initData.user;
+
+        if (userInfo) {
+            setUser({
+                id: userInfo.id,
+                name: `${userInfo.firstName} ${userInfo.lastName || ""}`.trim(),
+                photoUrl: userInfo.photoUrl
+            });
+        }*/
+
+
+    }, []);
+
+
+    return (
+        <div>
+            {user && <UserDetails user={user}></UserDetails>}
+            <GameCanvas></GameCanvas>
+        </div>
+    );
 }
 
 export default Home;

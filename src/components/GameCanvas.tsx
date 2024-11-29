@@ -2,12 +2,43 @@
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
 
-// Telegram Web Apps API is accessed via the global `window.Telegram` object
-declare global {
-    interface Window {
-        Telegram: Telegram;
-    }
+function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+
+    // right wing
+    ctx.beginPath();
+    ctx.moveTo(0, 0);         // Nose of the airplane
+    ctx.lineTo(50, 0);      // Top edge of the tail
+    ctx.lineTo(0, 10);       // Bottom point
+    ctx.lineTo(0, 0);        // Back to the nose
+    ctx.closePath();
+
+    ctx.fillStyle = "#81c7ff"; // Light gray for the airplane
+    ctx.fill();
+    ctx.strokeStyle = "#2089d3"; // Dark outline
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    //left wing
+    ctx.beginPath();
+    ctx.moveTo(0, -4);         // Nose of the airplane
+    ctx.lineTo(50, 0);      // Top edge of the tail
+    ctx.lineTo(4, -9  );       // Bottom point
+    ctx.lineTo(0, -4);        // Back to the nose
+    ctx.closePath();
+
+    ctx.fillStyle = "#81c7ff"; // Light gray for the airplane
+    ctx.fill();
+    ctx.strokeStyle = "#2089d3"; // Dark outline
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
 }
+
+
 
 const GameCanvas: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -20,19 +51,15 @@ const GameCanvas: React.FC = () => {
     const [gameOver, setGameOver] = useState(false);
     const [score, setScore] = useState(0);
 
-    // User info from Telegram
-    const [telegramState, setTelegramState] = useState("Undefined");
-    const [user, setUser] = useState<{ id: number; name: string; photoUrl?: string } | null>(null);
-
-    // Bird and pipe positions stored in refs
-    const birdRef = useRef({ y: screenHeight / 2, velocity: 0 });
+    // plane and pipe positions stored in refs
+    const planeRef = useRef({ y: screenHeight / 2, velocity: 0 });
     const pipesRef = useRef<Array<{ x: number; gap: number }>>([]);
     const frameRef = useRef<number | null>(null);
 
     // Constants adjusted for screen size
     const gravity = 0.5;
-    const flapStrength = -10;
-    const pipeSpeed = screenWidth * 0.002; // Speed scales with screen width
+    const flapStrength = -8;
+    const pipeSpeed = screenWidth * 0.003; // Speed scales with screen width
     const pipeWidth = screenWidth * 0.1;
     const pipeGap = screenHeight * 0.25;
 
@@ -51,32 +78,9 @@ const GameCanvas: React.FC = () => {
         };
     }, []);
 
-    // Telegram Web Apps API Initialization
-    useEffect(() => {
-        const telegram = window.Telegram?.WebApp;
-
-        if (telegram) {
-            telegram.ready(); // Notify Telegram that the app is ready
-            const userInfo = telegram.initDataUnsafe?.user;
-
-            if (userInfo) {
-                setUser({
-                    id: userInfo.id,
-                    name: `${userInfo.first_name} ${userInfo.last_name || ""}`.trim(),
-                    photoUrl: userInfo.photo_url,
-                });
-                setTelegramState(`User info set [user id = ${userInfo.id}]`);
-            } else {
-                setTelegramState("User info is not available. Check bot and domain configuration.");
-            }
-        } else {
-            setTelegramState("Telegram is unavailable");
-        }
-    }, []);
-
     // Reset the game
     const resetGame = useCallback(() => {
-        birdRef.current = { y: screenHeight / 2, velocity: 0 };
+        planeRef.current = { y: screenHeight / 2, velocity: 0 };
         pipesRef.current = Array.from({ length: 3 }, (_, i) => ({
             x: screenWidth + i * (screenWidth / 2),
             gap: Math.random() * (screenHeight * 0.4) + (screenHeight * 0.1),
@@ -85,10 +89,10 @@ const GameCanvas: React.FC = () => {
         setGameOver(false);
     }, [screenWidth, screenHeight]);
 
-    // Handle bird flap
+    // Handle plane flap
     const handleFlap = useCallback(() => {
         if (!gameOver) {
-            birdRef.current.velocity = flapStrength;
+            planeRef.current.velocity = flapStrength;
         } else {
             resetGame();
         }
@@ -104,19 +108,20 @@ const GameCanvas: React.FC = () => {
             // Clear canvas
             ctx.clearRect(0, 0, screenWidth, screenHeight);
 
-            // Update bird position
-            birdRef.current.y += birdRef.current.velocity;
-            birdRef.current.velocity += gravity;
+            // Update plane position
+            planeRef.current.y += planeRef.current.velocity;
+            planeRef.current.velocity += gravity;
 
             // Check for collisions with ground or ceiling
-            if (birdRef.current.y <= 0 || birdRef.current.y >= screenHeight) {
+            if (planeRef.current.y <= 0 || planeRef.current.y >= screenHeight) {
                 setGameOver(true);
                 return;
             }
 
-            // Draw bird
-            ctx.fillStyle = "blue";
-            ctx.fillRect(50, birdRef.current.y, screenWidth * 0.05, screenHeight * 0.05);
+            // Draw plane
+            drawPaperAirplane(ctx, 50, planeRef.current.y, 1);
+            // Score increment
+            setScore((prevScore) => prevScore + 1);
 
             // Update pipes and check for collisions
             let pipes = pipesRef.current;
@@ -141,15 +146,10 @@ const GameCanvas: React.FC = () => {
                 if (
                     pipe.x < 70 &&
                     pipe.x + pipeWidth > 50 &&
-                    (birdRef.current.y < pipe.gap || birdRef.current.y > pipeBottom)
+                    (planeRef.current.y < pipe.gap || planeRef.current.y > pipeBottom)
                 ) {
                     setGameOver(true);
                     return;
-                }
-
-                // Score increment
-                if (pipe.x + pipeWidth === 50) {
-                    setScore((prevScore) => prevScore + 1);
                 }
             });
 
@@ -208,17 +208,6 @@ const GameCanvas: React.FC = () => {
                 <div className="absolute text-2xl text-red-600">
                     Game Over! Score: {score} <br/>
                     Tap or press space to restart! <br />
-                    Telegram API state: {telegramState}
-                </div>
-            )}
-            {user && (
-                <div className="absolute top-4 left-4 flex items-center space-x-4">
-                    <img
-                        src={user.photoUrl}
-                        alt={user.name}
-                        className="w-10 h-10 rounded-full"
-                    />
-                    <span className="text-lg font-bold text-red-500">{user.name}</span>
                 </div>
             )}
         </div>
