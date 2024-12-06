@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 
 function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number, scale: number) {
     ctx.save();
@@ -15,9 +15,9 @@ function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number, 
     ctx.lineTo(0, 0);        // Back to the nose
     ctx.closePath();
 
-    ctx.fillStyle = "#81c7ff"; // Light gray for the airplane
+    ctx.fillStyle = "#99ceff"; // Light gray for the airplane
     ctx.fill();
-    ctx.strokeStyle = "#2089d3"; // Dark outline
+    ctx.strokeStyle = "#309ae5"; // Dark outline
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -25,7 +25,7 @@ function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number, 
     ctx.beginPath();
     ctx.moveTo(0, -4);         // Nose of the airplane
     ctx.lineTo(50, 0);      // Top edge of the tail
-    ctx.lineTo(4, -9  );       // Bottom point
+    ctx.lineTo(4, -9);       // Bottom point
     ctx.lineTo(0, -4);        // Back to the nose
     ctx.closePath();
 
@@ -39,35 +39,46 @@ function drawPaperAirplane(ctx: CanvasRenderingContext2D, x: number, y: number, 
 }
 
 
+interface GameCanvasProps {
+    handleScoreUpdate: (value: number) => void
+}
 
-const GameCanvas: React.FC = () => {
+const GameCanvas = ({handleScoreUpdate}: GameCanvasProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const canvasWrapperRef = useRef<HTMLDivElement>(null);
 
     // Screen dimensions
     const [screenWidth, setScreenWidth] = useState(0);
     const [screenHeight, setScreenHeight] = useState(0);
 
     // Game state
-    const [gameOver, setGameOver] = useState(false);
+    const [gameState, setGameState] = useState<"NOT_STARTED" | "GAME_OVER" | "RUNNING">("NOT_STARTED");
     const [score, setScore] = useState(0);
 
     // plane and pipe positions stored in refs
-    const planeRef = useRef({ y: screenHeight / 2, velocity: 0 });
+    const planeRef = useRef({y: screenHeight / 2, velocity: 0});
     const pipesRef = useRef<Array<{ x: number; gap: number }>>([]);
     const frameRef = useRef<number | null>(null);
 
     // Constants adjusted for screen size
-    const gravity = 0.5;
-    const flapStrength = -8;
+    const gravity = 0.4;
+    const flapStrength = -6;
     const pipeSpeed = screenWidth * 0.003; // Speed scales with screen width
     const pipeWidth = screenWidth * 0.1;
     const pipeGap = screenHeight * 0.25;
 
+    const handleGameOver = function () {
+        setGameState("GAME_OVER");
+        handleScoreUpdate(score);
+    }
+
     // Handle screen resize
     useEffect(() => {
         const handleResize = () => {
-            setScreenWidth(window.innerWidth);
-            setScreenHeight(window.innerHeight-100);
+            if (canvasWrapperRef.current) {
+                setScreenWidth(canvasWrapperRef.current.offsetWidth);
+                setScreenHeight(canvasWrapperRef.current.offsetHeight);
+            }
         };
 
         handleResize(); //call once on startup
@@ -80,23 +91,26 @@ const GameCanvas: React.FC = () => {
 
     // Reset the game
     const resetGame = useCallback(() => {
-        planeRef.current = { y: screenHeight / 2, velocity: 0 };
-        pipesRef.current = Array.from({ length: 3 }, (_, i) => ({
+        planeRef.current = {y: screenHeight / 2, velocity: 0};
+        pipesRef.current = Array.from({length: 3}, (_, i) => ({
             x: screenWidth + i * (screenWidth / 2),
             gap: Math.random() * (screenHeight * 0.4) + (screenHeight * 0.1),
         }));
         setScore(0);
-        setGameOver(false);
     }, [screenWidth, screenHeight]);
 
     // Handle plane flap
     const handleFlap = useCallback(() => {
-        if (!gameOver) {
-            planeRef.current.velocity = flapStrength;
-        } else {
+        if (gameState === "NOT_STARTED" || gameState === "GAME_OVER") {
             resetGame();
+            setGameState("RUNNING");
         }
-    }, [gameOver, resetGame]);
+
+        if (gameState === "RUNNING") {
+            planeRef.current.velocity = flapStrength;
+        }
+
+    }, [flapStrength, gameState, resetGame]);
 
     // Main game loop
     useEffect(() => {
@@ -114,7 +128,7 @@ const GameCanvas: React.FC = () => {
 
             // Check for collisions with ground or ceiling
             if (planeRef.current.y <= 0 || planeRef.current.y >= screenHeight) {
-                setGameOver(true);
+                handleGameOver();
                 return;
             }
 
@@ -132,7 +146,7 @@ const GameCanvas: React.FC = () => {
 
             pipes.forEach((pipe) => {
                 // Draw top and bottom pipes
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#4354f1";
                 ctx.fillRect(pipe.x, 0, pipeWidth, pipe.gap);
                 ctx.fillRect(
                     pipe.x,
@@ -148,7 +162,7 @@ const GameCanvas: React.FC = () => {
                     pipe.x + pipeWidth > 50 &&
                     (planeRef.current.y < pipe.gap || planeRef.current.y > pipeBottom)
                 ) {
-                    setGameOver(true);
+                    handleGameOver();
                     return;
                 }
             });
@@ -157,7 +171,7 @@ const GameCanvas: React.FC = () => {
             if (pipes[0]?.x + pipeWidth < 0) {
                 pipes.shift();
                 pipes.push({
-                    x: screenWidth,
+                    x: screenWidth + (screenWidth / 2),
                     gap: Math.random() * (screenHeight * 0.4) + (screenHeight * 0.1),
                 });
             }
@@ -166,13 +180,13 @@ const GameCanvas: React.FC = () => {
 
             // Draw score
             ctx.font = "20px Arial";
-            ctx.fillStyle = "black";
+            ctx.fillStyle = "white";
             ctx.fillText(`Score: ${score}`, 10, 20);
 
             frameRef.current = requestAnimationFrame(render);
         };
 
-        if (!gameOver) {
+        if (gameState === "RUNNING") {
             frameRef.current = requestAnimationFrame(render);
         }
 
@@ -181,7 +195,7 @@ const GameCanvas: React.FC = () => {
                 cancelAnimationFrame(frameRef.current);
             }
         };
-    }, [gameOver, score, screenWidth, screenHeight]);
+    }, [gameState, score, screenWidth, screenHeight]);
 
     // Handle spacebar input
     useEffect(() => {
@@ -198,16 +212,21 @@ const GameCanvas: React.FC = () => {
     }, [handleFlap]);
 
     return (
-        <div
-            className="w-full h-screen flex items-center justify-center bg-gray-100 relative"
-            onMouseDown={handleFlap}
-            onTouchStart={handleFlap}
+        <div ref={canvasWrapperRef}
+             className="w-full h-full"
+             onMouseDown={handleFlap}
+             onTouchStart={handleFlap}
         >
-            <canvas ref={canvasRef} width={screenWidth} height={screenHeight}/>
-            {gameOver && (
-                <div className="absolute text-2xl text-red-600">
+            {gameState === "RUNNING" && <canvas ref={canvasRef} width={screenWidth} height={screenHeight}/>}
+            {gameState === "NOT_STARTED" && (
+                <div className="text-2xl text-red-600">
+                    Tap or press space to start! <br/>
+                </div>
+            )}
+            {gameState === "GAME_OVER" && (
+                <div className="text-2xl text-red-600">
                     Game Over! Score: {score} <br/>
-                    Tap or press space to restart! <br />
+                    Tap or press space to restart! <br/>
                 </div>
             )}
         </div>
